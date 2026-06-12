@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BPM 系統 — 無待處理流程</title>
+  <link rel="stylesheet"
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+  <style>
+    body { background: #f0f2f5; }
+    .user-info-badge {
+      font-size: .85rem;
+      background: rgba(255,255,255,.15);
+      border: 1px solid rgba(255,255,255,.3);
+      border-radius: .5rem;
+      padding: .3rem .75rem;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navbar (規則 D) -->
+  <nav class="navbar navbar-dark bg-primary px-3">
+    <span class="navbar-brand fw-bold">🏢 BPM 系統</span>
+    <div class="ms-auto text-white user-info-badge">
+      <span id="navUserid">載入中...</span>
+      <span class="text-white-50 mx-1">|</span>
+      Session: <span id="navSessionId" class="font-monospace" style="font-size:.78rem">...</span>
+    </div>
+  </nav>
+
+  <div class="container py-5 text-center">
+    <div class="card border-0 shadow-sm mx-auto" style="max-width:480px">
+      <div class="card-body py-5">
+        <div style="font-size:4rem">📭</div>
+        <h4 class="mt-3 fw-bold text-secondary">目前無待處理流程</h4>
+        <p class="text-muted">您的帳號目前沒有對應的工作流程，請稍後再確認或聯繫管理員。</p>
+        <a href="/Login.html" class="btn btn-outline-primary mt-2">返回登入頁</a>
+      </div>
+    </div>
+  </div>
+
+  <script src="/config.js"></script>
+  <script>
+    const API_BASE = window.APP_CONFIG?.API_BASE || '';
+
+    async function apiFetch(url, opts = {}) {
+      const res = await fetch(url, { credentials: 'include', ...opts });
+      if (res.status === 401) {
+        window.location.href = '/Login.html';
+        throw new Error('Unauthorized');
+      }
+      return res;
+    }
+
+    (async () => {
+      try {
+        const res  = await apiFetch(`${API_BASE}/api/v1/auth/session`);
+        const data = await res.json();
+        if (!data.success) return;
+
+        document.getElementById('navUserid').textContent    = `👤 ${data.payload?.FromUser?.Userid || '—'}`;
+        document.getElementById('navSessionId').textContent = data.sessionId || '—';
+      } catch (_) {}
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BPM 系統 — Workflow 結果</title>
+  <link rel="stylesheet"
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+  <style>
+    body { background: #f0f2f5; }
+    .navbar-brand { font-weight: 700; letter-spacing: .5px; }
+    .user-info-badge {
+      font-size: .85rem;
+      background: rgba(255,255,255,.15);
+      border: 1px solid rgba(255,255,255,.3);
+      border-radius: .5rem;
+      padding: .3rem .75rem;
+    }
+    .section-title {
+      font-size: .75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #6c757d;
+      margin-bottom: .5rem;
+    }
+    .data-card { border: none; box-shadow: 0 2px 8px rgba(0,0,0,.08); border-radius: .75rem; }
+    .data-card .card-header { border-radius: .75rem .75rem 0 0; font-weight: 600; }
+    .field-label { color: #6c757d; font-size: .8rem; font-weight: 600; }
+    .field-value { font-size: .95rem; }
+  </style>
+</head>
+<body>
+
+  <!-- Navbar (規則 D - 顯示 Userid & SessionID) -->
+  <nav class="navbar navbar-dark bg-primary px-3">
+    <span class="navbar-brand">🏢 BPM 系統</span>
+    <div class="ms-auto text-white user-info-badge">
+      <span id="navUserid">載入中...</span>
+      <span class="text-white-50 mx-1">|</span>
+      Session: <span id="navSessionId" class="font-monospace" style="font-size:.78rem">...</span>
+    </div>
+  </nav>
+
+  <div class="container py-4">
+    <h4 class="mb-4 fw-bold">📋 Workflow 資料總覽</h4>
+
+    <div id="mainContent">
+      <!-- 動態渲染 -->
+    </div>
+
+    <div id="errorBox" class="alert alert-danger d-none" role="alert">
+      <strong>錯誤：</strong> <span id="errorMsg"></span>
+    </div>
+  </div>
+
+  <script src="/config.js"></script>
+  <script>
+    const API_BASE = window.APP_CONFIG?.API_BASE || '';
+
+    // ── 全域 401 處理 (規則 D) ────────────────────────────
+    async function apiFetch(url, opts = {}) {
+      const res = await fetch(url, { credentials: 'include', ...opts });
+      if (res.status === 401) {
+        window.location.href = '/Login.html';
+        throw new Error('Unauthorized');
+      }
+      return res;
+    }
+
+    function showError(msg) {
+      document.getElementById('errorBox').classList.remove('d-none');
+      document.getElementById('errorMsg').textContent = msg;
+    }
+
+    // ── 渲染單張 Card ─────────────────────────────────────
+    function renderCard(title, colorClass, iconEmoji, data) {
+      if (!data) {
+        return `
+          <div class="data-card card mb-3">
+            <div class="card-header bg-secondary text-white">${iconEmoji} ${title}</div>
+            <div class="card-body text-muted">（無資料）</div>
+          </div>`;
+      }
+      const rows = Object.entries(data)
+        .map(([k, v]) => `
+          <div class="col-sm-6 col-md-4 mb-2">
+            <div class="field-label">${k}</div>
+            <div class="field-value">${v !== null && v !== undefined ? v : '—'}</div>
+          </div>`).join('');
+
+      return `
+        <div class="data-card card mb-3">
+          <div class="card-header ${colorClass} text-white">${iconEmoji} ${title}</div>
+          <div class="card-body">
+            <div class="row">${rows}</div>
+          </div>
+        </div>`;
+    }
+
+    // ── 主流程 ────────────────────────────────────────────
+    (async () => {
+      try {
+        const res  = await apiFetch(`${API_BASE}/api/v1/auth/session`);
+        const data = await res.json();
+
+        if (!data.success) {
+          showError(data.error || '無法取得 Session 資料');
+          return;
+        }
+
+        const { sessionId, payload } = data;
+        const { FromUser, FromBpmusergroup, CurrentWorkflow, ToUser, ToBpmusergroup } = payload;
+
+        // Navbar
+        document.getElementById('navUserid').textContent   = `👤 ${FromUser?.Userid || '—'}`;
+        document.getElementById('navSessionId').textContent = sessionId || '—';
+
+        // Cards
+        document.getElementById('mainContent').innerHTML = [
+          renderCard('發起人 (FromUser)',            'bg-primary',   '👤', FromUser),
+          renderCard('發起人群組 (FromBpmusergroup)', 'bg-info',      '🏷️', FromBpmusergroup),
+          renderCard('目前 Workflow (CurrentWorkflow)', 'bg-success', '🔄', CurrentWorkflow),
+          renderCard('接收人 (ToUser)',               'bg-warning',   '👥', ToUser),
+          renderCard('接收人群組 (ToBpmusergroup)',   'bg-secondary', '🏷️', ToBpmusergroup),
+        ].join('');
+
+      } catch (err) {
+        if (err.message !== 'Unauthorized') {
+          showError('發生未預期錯誤：' + err.message);
+        }
+      }
+    })();
+  </script>
+</body>
+</html>

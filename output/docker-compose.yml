@@ -1,0 +1,55 @@
+
+services:
+
+  # ── MySQL 資料庫 ────────────────────────────────────────
+  db:
+    image: mysql:8.0
+    container_name: bpm_db
+    restart: unless-stopped
+    command: >
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --init-connect='SET NAMES utf8mb4'
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE:      bpmdb
+      MYSQL_USER:          bpmuser
+      MYSQL_PASSWORD:      bpmpass
+      TZ:                  Asia/Taipei
+    ports:
+      - "3307:3306"  # 本機已有 MySQL 佔用 3306，改用 3307 對外暴露
+    volumes:
+      - bpm_mysql_data:/var/lib/mysql
+      # 初始化 SQL：容器第一次啟動時自動執行
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro  # 字集設定 + 資料，同一連線執行
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-ubpmuser", "-pbpmpass"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ── Node.js Backend ─────────────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bpm_app
+    restart: unless-stopped
+    environment:
+      DB_HOST:         db
+      DB_PORT:         3306
+      DB_USER:         bpmuser
+      DB_PASSWORD:     bpmpass
+      DB_NAME:         bpmdb
+      SESSION_SECRET:  change_me_in_production
+      PORT:            3000
+      TZ:              Asia/Taipei
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  bpm_mysql_data:

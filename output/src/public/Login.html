@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BPM 系統 — 登入</title>
+  <link rel="stylesheet"
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+  <style>
+    body {
+      background: linear-gradient(135deg, #1a237e 0%, #283593 60%, #3949ab 100%);
+      min-height: 100vh;
+    }
+    .login-card {
+      border: none;
+      border-radius: 1rem;
+      box-shadow: 0 8px 32px rgba(0,0,0,.35);
+    }
+    .login-card .card-header {
+      background: #1a237e;
+      border-radius: 1rem 1rem 0 0;
+    }
+    #errorAlert { display: none; }
+  </style>
+</head>
+<body class="d-flex align-items-center justify-content-center vh-100">
+
+  <div class="card login-card" style="width:380px">
+    <div class="card-header py-3 text-center">
+      <h4 class="text-white mb-0">🔐 BPM 系統登入</h4>
+    </div>
+    <div class="card-body p-4">
+
+      <!-- 錯誤訊息區 -->
+      <div id="errorAlert" class="alert alert-danger d-flex align-items-center" role="alert">
+        <svg class="bi flex-shrink-0 me-2" width="24" height="24" role="img">
+          <use xlink:href="#exclamation-triangle-fill"/>
+        </svg>
+        <div id="errorMsg">錯誤</div>
+      </div>
+
+      <form id="loginForm" novalidate>
+        <div class="mb-3">
+          <label for="Userid" class="form-label fw-semibold">帳號 (Userid)</label>
+          <input type="text" class="form-control form-control-lg"
+                 id="Userid" name="Userid"
+                 placeholder="請輸入帳號" required autocomplete="username">
+        </div>
+        <div class="mb-4">
+          <label for="Password" class="form-label fw-semibold">密碼 (Password)</label>
+          <input type="password" class="form-control form-control-lg"
+                 id="Password" name="Password"
+                 placeholder="請輸入密碼" required autocomplete="current-password">
+        </div>
+        <div class="d-grid">
+          <button type="submit" id="loginBtn" class="btn btn-primary btn-lg">
+            <span id="btnText">登入</span>
+            <span id="btnSpinner" class="spinner-border spinner-border-sm ms-2 d-none" role="status"></span>
+          </button>
+        </div>
+      </form>
+
+    </div>
+  </div>
+
+  <script src="/config.js"></script>
+  <script>
+    const API_BASE = window.APP_CONFIG?.API_BASE || '';
+
+    function showError(msg) {
+      const el = document.getElementById('errorAlert');
+      document.getElementById('errorMsg').textContent = msg;
+      el.style.display = 'flex';
+    }
+
+    function hideError() {
+      document.getElementById('errorAlert').style.display = 'none';
+    }
+
+    function setLoading(loading) {
+      document.getElementById('loginBtn').disabled = loading;
+      document.getElementById('btnText').textContent = loading ? '登入中...' : '登入';
+      document.getElementById('btnSpinner').classList.toggle('d-none', !loading);
+    }
+
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      hideError();
+
+      const Userid   = document.getElementById('Userid').value.trim();
+      const Password = document.getElementById('Password').value;
+
+      if (!Userid || !Password) {
+        showError('請輸入帳號與密碼');
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const res  = await fetch(`${API_BASE}/api/v1/auth/login`, {
+          method:      'POST',
+          headers:     { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body:        JSON.stringify({ Userid, Password })
+        });
+
+        const data = await res.json();
+
+        if (!res.ok || !data.success) {
+          // 全域錯誤機制 (規則 A)
+          showError(data.error || `登入失敗 (HTTP ${res.status})`);
+          return;
+        }
+
+        // 成功 → 依後端指示跳轉
+        window.location.href = data.redirect;
+
+      } catch (err) {
+        showError('網路連線失敗，請稍後再試。');
+      } finally {
+        setLoading(false);
+      }
+    });
+  </script>
+</body>
+</html>

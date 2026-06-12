@@ -1,0 +1,77 @@
+name: BPM CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ── Build & Test ──────────────────────────────────────────
+  build-and-test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: rootpass
+          MYSQL_DATABASE:      bpmdb
+          MYSQL_USER:          bpmuser
+          MYSQL_PASSWORD:      bpmpass
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -h localhost -ubpmuser -pbpmpass"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: output/src/package-lock.json
+
+      - name: Install dependencies
+        working-directory: output/src
+        run: npm ci
+
+      - name: Import BPM.sql to test DB
+        run: |
+          mysql -h 127.0.0.1 -P 3306 -uroot -prootpass < BPM.sql
+          # Grant 給 bpmuser
+          mysql -h 127.0.0.1 -P 3306 -uroot -prootpass -e \
+            "GRANT ALL PRIVILEGES ON bpmdb.* TO 'bpmuser'@'%'; FLUSH PRIVILEGES;"
+
+      - name: Run Jest tests
+        working-directory: output/src
+        env:
+          DB_HOST:        127.0.0.1
+          DB_PORT:        3306
+          DB_USER:        bpmuser
+          DB_PASSWORD:    bpmpass
+          DB_NAME:        bpmdb
+          SESSION_SECRET: ci_test_secret
+          TZ:             Asia/Taipei
+        run: npm test
+
+  # ── Deploy to Render ──────────────────────────────────────
+  deploy:
+    name: Deploy to Render
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: Trigger Render Deploy Hook
+        # 在 Render Dashboard → Your Service → Deploy Hook 取得 URL
+        # 將 URL 存在 GitHub Secrets → RENDER_DEPLOY_HOOK_URL
+        run: |
+          curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
